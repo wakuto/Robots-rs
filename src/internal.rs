@@ -1,5 +1,6 @@
 use rand::Rng;
 use ncurses::*;
+use std::collections::HashSet;
 
 /// プログラムを終了
 pub const KEY_QUIT:  i32 = b'q' as i32;
@@ -24,7 +25,7 @@ pub const KEY_LDOWN: i32 = b'm' as i32;
 /// ランダム
 pub const KEY_RAND:  i32 = b'k' as i32;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// フィールド上の位置を示します
 pub struct Point {
   /// x座標
@@ -35,7 +36,7 @@ pub struct Point {
 
 impl Point {
   pub fn new(x: usize, y: usize) -> Point {
-    Point { x: x, y: y }
+    Point { x, y }
   }
 }
 
@@ -65,7 +66,7 @@ pub struct Field {
   /// robotの位置のリスト
   pub robots_pos: Vec<Point>,
   /// scrapの位置のリスト
-  pub scraps_pos: Vec<Point>,
+  pub scraps_pos: HashSet<Point>,
   /// fieldを表すリスト
   pub field: Vec<Vec<Object>>,
 }
@@ -80,7 +81,7 @@ impl Field {
     let mut rng = rand::thread_rng();
     let mut field = vec![vec![Object::Null; width]; height];
     let mut robots = vec![Point::new(0, 0); robots_num];
-    let scraps: Vec<Point> = Vec::new();
+    let scraps: HashSet<Point> = HashSet::new();
     let player = Point::new(width>>1, height>>1);
 
     let mut player_idx = 0;
@@ -95,7 +96,6 @@ impl Field {
     }
     coord_list.remove(player_idx);
 
-
     for i in 0..robots_num {
       let idx = rng.gen::<usize>() % coord_list.len();
       robots[i] = coord_list[idx];
@@ -107,13 +107,13 @@ impl Field {
     field[player.y][player.x] = Object::Player;
 
     Field {
-      pos: pos,
-      width: width,
-      height: height,
+      pos,
+      width,
+      height,
       player_pos: Point::new(width>>1, height>>1),
       robots_pos: robots,
       scraps_pos: scraps,
-      field: field,
+      field,
     }
   }
 
@@ -152,10 +152,8 @@ impl Field {
       if x != 0 { x /= x.abs(); }
       if y != 0 { y /= y.abs(); }
 
-      let x_next = (robot.x as i32 + x) as usize;
-      let y_next = (robot.y as i32 + y) as usize;
-      self.robots_pos[rob_idx].x = x_next;
-      self.robots_pos[rob_idx].y = y_next;
+      self.robots_pos[rob_idx].x = (robot.x as i32 + x) as usize;
+      self.robots_pos[rob_idx].y = (robot.y as i32 + y) as usize;
     }
 
     let score = self.check_scrap();   // スクラップにする
@@ -165,7 +163,7 @@ impl Field {
     self.field_clear();
     self.field[self.player_pos.y][self.player_pos.x] = Object::Player;
     self.field_set(self.robots_pos.clone(), Object::Robot);
-    self.field_set(self.scraps_pos.clone(), Object::Scrap);
+    self.field_set(self.scraps_pos.clone().into_iter().collect(), Object::Scrap);
 
     if res {
       Some(score)
@@ -196,18 +194,19 @@ impl Field {
   /// 倒したrobotの数から計算した`score`を返します
   fn check_scrap(&mut self) -> u64 {
     let mut score = 0;
+
     // 同じ座標にあるrobotを削除・scrapに追加
     let rob_num = self.robots_pos.len();
     let mut rem_idx = Vec::<usize>::new();
-    if rob_num >= 2 {
-      for rob_idx_a in 0..(rob_num-1) {
-        for rob_idx_b in (rob_idx_a+1)..rob_num {
-          if self.robots_pos[rob_idx_a] == self.robots_pos[rob_idx_b] {
-            rem_idx.push(rob_idx_a);
-            if !self.scraps_pos.contains(&self.robots_pos[rob_idx_a]) {
-              self.scraps_pos.push(self.robots_pos[rob_idx_a]);
-            }
-          }
+    let mut hash_pos = HashSet::<Point>::new();
+
+    for rob_idx in 0..rob_num {
+      if !hash_pos.contains(&self.robots_pos[rob_idx]) {
+        hash_pos.insert(self.robots_pos[rob_idx]);
+      } else {
+        rem_idx.push(rob_idx);
+        if !self.scraps_pos.contains(&self.robots_pos[rob_idx]) {
+          self.scraps_pos.insert(self.robots_pos[rob_idx]);
         }
       }
     }
@@ -218,7 +217,7 @@ impl Field {
 
     // scrapと同じ座標にあるrobotを削除
     let rob_num = self.robots_pos.len();
-    let mut rem_idx = Vec::<usize>::new();
+    let mut rem_idx: Vec<usize> = Vec::new();
     for rob_idx in 0..rob_num {
       if self.scraps_pos.contains(&self.robots_pos[rob_idx]) {
         rem_idx.push(rob_idx);
@@ -284,4 +283,3 @@ impl Field {
     }
   }
 }
-
