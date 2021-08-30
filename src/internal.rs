@@ -271,6 +271,8 @@ impl Field {
     addstr(&frame);
     // プレイヤーの描画
     for pos_y in 0..self.height {
+      mv(y + pos_y as i32, x-1);
+      addstr("|");
       for pos_x in 0..self.width {
         mv(y + pos_y as i32, x + pos_x as i32);
         match &self.field[pos_y][pos_x] {
@@ -280,6 +282,7 @@ impl Field {
           _              => addstr(" "),
         };
       }
+      addstr("|");
     }
   }
 }

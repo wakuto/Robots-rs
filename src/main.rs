@@ -43,8 +43,12 @@ fn main() {
   let mut score:u64 = 0;
   let mut level:u32 = 1;
 
+  let mut scr_w: i32 = 0;
+  let mut scr_h: i32 = 0;
+  getmaxyx(stdscr(), &mut scr_h, &mut scr_w);
+
   loop {
-    let mut field = Field::new(Point{x:5, y:5}, 150, 40, std::cmp::min((level*5) as usize, 40));
+    let mut field = Field::new(Point{x:5, y:5}, (scr_w-8) as usize, (scr_h-6) as usize, std::cmp::min((level*5) as usize, 40));
     field.print();
 
     let mut x = field.player_pos.x;
