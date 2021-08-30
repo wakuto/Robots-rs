@@ -104,8 +104,9 @@ impl Field {
 
 // TODO: ロボットをプレイヤー方向に近づける
 // スクラップをその場に表示させ続ける
-  pub fn robots_move(&mut self) -> bool {
+  pub fn robots_move(&mut self) -> Option<u64> {
     let rob_num = self.robots_pos.len();
+    let mut score = 0;
 
     // とりあえずロボットを移動させる
     for rob_idx in 0..rob_num {
@@ -140,6 +141,7 @@ impl Field {
     }
     for rob_idx in rem_idx.iter().rev() {
       self.robots_pos.remove(*rob_idx);
+      score += 1;
     }
 
     // scrapと同じ座標にあるrobotを削除
@@ -152,6 +154,7 @@ impl Field {
     }
     for rob_idx in rem_idx.iter().rev() {
       self.robots_pos.remove(*rob_idx);
+      score += 1;
     }
 
     // playerとrobotの座標を比較
@@ -179,7 +182,11 @@ impl Field {
     self.field_set(self.robots_pos.clone(), Object::Robot);
     self.field_set(self.scraps_pos.clone(), Object::Scrap);
 
-    res
+    if res {
+      Some(score)
+    } else {
+      None
+    }
   }
 
   fn field_clear(&mut self) {
@@ -199,7 +206,6 @@ impl Field {
   pub fn print(&self) {
     let x = self.pos.x as i32;
     let y = self.pos.y as i32;
-    let scr = stdscr();
 
     let mut frame = String::new();
     for _i in 0..self.x_size {
@@ -207,18 +213,18 @@ impl Field {
     }
     // フレームの描画
     mv(y-1, x);
-    waddstr(scr, &frame);
+    addstr(&frame);
     mv(y+self.y_size as i32, x);
-    waddstr(scr, &frame);
+    addstr(&frame);
     // プレイヤーの描画
     for pos_y in 0..self.y_size {
       for pos_x in 0..self.x_size {
         mv(y + pos_y as i32, x + pos_x as i32);
         match &self.field[pos_y][pos_x] {
-          Object::Player => waddstr(scr, "@"),
-          Object::Robot  => waddstr(scr, "+"),
-          Object::Scrap  => waddstr(scr, "*"),
-          _              => waddstr(scr, " "),
+          Object::Player => addstr("@"),
+          Object::Robot  => addstr("+"),
+          Object::Scrap  => addstr("*"),
+          _              => addstr(" "),
         };
       }
     }
