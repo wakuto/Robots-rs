@@ -1,21 +1,35 @@
 use rand::Rng;
 use ncurses::*;
 
+/// プログラムを終了
 pub const KEY_QUIT:  i32 = b'q' as i32;
+/// 左
 pub const KEY_LEFT:  i32 = b'j' as i32;
+/// 下
 pub const KEY_DOWN:  i32 = b',' as i32;
+/// 上
 pub const KEY_UP:    i32 = b'i' as i32;
+/// 右
 pub const KEY_RIGHT: i32 = b'l' as i32;
+/// 移動しない
 pub const KEY_STAY:  i32 = b' ' as i32;
+/// 右上
 pub const KEY_RUP:   i32 = b'o' as i32;
+/// 右下
 pub const KEY_RDOWN: i32 = b'.' as i32;
+/// 左上
 pub const KEY_LUP:   i32 = b'u' as i32;
+/// 左下
 pub const KEY_LDOWN: i32 = b'm' as i32;
+/// ランダム
 pub const KEY_RAND:  i32 = b'k' as i32;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
+/// フィールド上の位置を示します
 pub struct Point {
+  /// x座標
   pub x: usize,
+  /// y座標
   pub y: usize,
 }
 
@@ -26,38 +40,56 @@ impl Point {
 }
 
 #[derive(Copy, Clone, Debug)]
+/// フィールド上のオブジェクトの種類を表します
 pub enum Object {
+  /// プレイヤー
   Player,
+  /// ロボット
   Robot,
+  /// スクラップ
   Scrap,
+  /// 何もない
   Null,
 }
 
+/// ゲームフィールドを表します
 pub struct Field {
+  /// fieldが配置される場所
   pub pos: Point,
-  pub x_size: usize,
-  pub y_size: usize,
+  /// 横幅
+  pub width: usize,
+  /// 縦幅
+  pub height: usize,
+  /// playerの位置
   pub player_pos: Point,
+  /// robotの位置のリスト
   pub robots_pos: Vec<Point>,
+  /// scrapの位置のリスト
   pub scraps_pos: Vec<Point>,
+  /// fieldを表すリスト
   pub field: Vec<Vec<Object>>,
 }
 
 impl Field {
-  pub fn new(pos: Point, x_size: usize, y_size: usize, robots_num: usize) -> Field {
+  /// fieldを生成し、robotをランダムに配置します
+  /// * `pos` - fieldが配置される場所
+  /// * `width` - fieldの横幅
+  /// * `height` - fieldの縦幅
+  /// * `robots_num` - robotの数
+  pub fn new(pos: Point, width: usize, height: usize, robots_num: usize) -> Field {
     let mut rng = rand::thread_rng();
-    let mut field = vec![vec![Object::Null; x_size]; y_size];
+    let mut field = vec![vec![Object::Null; width]; height];
     let mut robots = vec![Point::new(0, 0); robots_num];
     let scraps: Vec<Point> = Vec::new();
-    let player = Point::new(x_size>>1, y_size>>1);
+    let player = Point::new(width>>1, height>>1);
 
     let mut player_idx = 0;
-    let mut coord_list = vec![Point::new(0, 0); x_size*y_size];
-    for y in 0..y_size {
-      for x in 0..x_size {
-        coord_list[y*x_size + x] = Point::new(x, y);
+    let mut coord_list = vec![Point::new(0, 0); width*height];
+    for y in 0..height {
+      for x in 0..width {
+        coord_list[y*width + x] = Point::new(x, y);
         if Point::new(x, y) == player {
-          player_idx = y*x_size + x;
+          player_idx = y*width + x;
         }
       }
     }
@@ -76,16 +108,18 @@ impl Field {
 
     Field {
       pos: pos,
-      x_size: x_size,
-      y_size: y_size,
-      player_pos: Point::new(x_size>>1, y_size>>1),
+      width: width,
+      height: height,
+      player_pos: Point::new(width>>1, height>>1),
       robots_pos: robots,
       scraps_pos: scraps,
       field: field,
     }
   }
 
-// TODO: ランダム移動の実装
+  /// playerを移動させます
+  /// 指定の座標に移動できないときは`false`を返します
+  /// * `pos` - 移動先の座標
   pub fn player_move(&mut self, pos: Point) -> bool {
     let res;
     match self.field[pos.y][pos.x] {
@@ -102,11 +136,11 @@ impl Field {
     res
   }
 
-// TODO: ロボットをプレイヤー方向に近づける
-// スクラップをその場に表示させ続ける
+  /// robotをplayerの方向に移動させます
+  /// playerが負けた場合は`None`
+  /// それ以外の場合は獲得したscoreを返します
   pub fn robots_move(&mut self) -> Option<u64> {
     let rob_num = self.robots_pos.len();
-    let mut score = 0;
 
     // とりあえずロボットを移動させる
     for rob_idx in 0..rob_num {
@@ -124,6 +158,44 @@ impl Field {
       self.robots_pos[rob_idx].y = y_next;
     }
 
+    let score = self.check_scrap();   // スクラップにする
+    let res = self.check_player_pos();// プレイヤーの安全を確認する
+
+    // field情報の更新
+    self.field_clear();
+    self.field[self.player_pos.y][self.player_pos.x] = Object::Player;
+    self.field_set(self.robots_pos.clone(), Object::Robot);
+    self.field_set(self.scraps_pos.clone(), Object::Scrap);
+
+    if res {
+      Some(score)
+    } else {
+      None
+    }
+  }
+
+  /// fieldを`Object::Null`で埋めます
+  fn field_clear(&mut self) {
+    for y in 0..self.height {
+      for x in 0..self.width {
+        self.field[y][x] = Object::Null;
+      }
+    }
+  }
+
+  /// fieldの指定した座標を指定の`Object`に設定します
+  /// * `points` - 設定する座標のリスト
+  /// * `obj` - 設定するObjectのタイプ
+  fn field_set(&mut self, points: Vec<Point>, obj: Object) {
+    for p in points {
+      self.field[p.y][p.x] = obj;
+    }
+  }
+
+  /// 衝突したrobotをscrapにします
+  /// 倒したrobotの数から計算した`score`を返します
+  fn check_scrap(&mut self) -> u64 {
+    let mut score = 0;
     // 同じ座標にあるrobotを削除・scrapに追加
     let rob_num = self.robots_pos.len();
     let mut rem_idx = Vec::<usize>::new();
@@ -156,7 +228,13 @@ impl Field {
       self.robots_pos.remove(*rob_idx);
       score += 1;
     }
+    score
+  }
 
+  /// playerが安全な場所に居るかを判定します
+  /// playerが安全なら`true`
+  /// それ以外なら`false`を返します
+  fn check_player_pos(&self) -> bool {
     // playerとrobotの座標を比較
     let mut res = true;
     for rob in &self.robots_pos {
@@ -175,50 +253,26 @@ impl Field {
         }
       }
     }
-
-    // field情報の更新
-    self.field_clear();
-    self.field[self.player_pos.y][self.player_pos.x] = Object::Player;
-    self.field_set(self.robots_pos.clone(), Object::Robot);
-    self.field_set(self.scraps_pos.clone(), Object::Scrap);
-
-    if res {
-      Some(score)
-    } else {
-      None
-    }
+    res
   }
 
-  fn field_clear(&mut self) {
-    for y in 0..self.y_size {
-      for x in 0..self.x_size {
-        self.field[y][x] = Object::Null;
-      }
-    }
-  }
-
-  fn field_set(&mut self, points: Vec<Point>, obj: Object) {
-    for p in points {
-      self.field[p.y][p.x] = obj;
-    }
-  }
-
+  /// fieldをフレーム付きでncursesのウィンドウに描画します
   pub fn print(&self) {
     let x = self.pos.x as i32;
     let y = self.pos.y as i32;
 
     let mut frame = String::new();
-    for _i in 0..self.x_size {
+    for _i in 0..self.width {
       frame = format!("{}-", &frame);
     }
     // フレームの描画
     mv(y-1, x);
     addstr(&frame);
-    mv(y+self.y_size as i32, x);
+    mv(y+self.height as i32, x);
     addstr(&frame);
     // プレイヤーの描画
-    for pos_y in 0..self.y_size {
-      for pos_x in 0..self.x_size {
+    for pos_y in 0..self.height {
+      for pos_x in 0..self.width {
         mv(y + pos_y as i32, x + pos_x as i32);
         match &self.field[pos_y][pos_x] {
           Object::Player => addstr("@"),

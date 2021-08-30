@@ -1,3 +1,5 @@
+//! 本プログラムは授業用に制作したRobotsのプログラムです
+
 use rand::Rng;
 use ncurses::*;
 
@@ -5,6 +7,7 @@ mod internal;
 use internal::*;
 use internal::{KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT};
 
+/// endwin()を呼んでmain()からreturnする
 macro_rules! exit {
   () => {
     endwin();
@@ -12,6 +15,7 @@ macro_rules! exit {
   }
 }
 
+/// ステータスの位置にlevel, scoreを表示する
 macro_rules! print_status {
   ($level:expr, $score:expr) => {
     mv(3, 0);
@@ -19,6 +23,7 @@ macro_rules! print_status {
   }
 }
 
+/// プレイ結果の位置にリザルトを表示する
 macro_rules! print_result {
   ($res: expr) => {
     mv(1, 0);
@@ -66,7 +71,7 @@ fn main() {
       field.print();
 
       match robot_res {
-        Some(x) => { score += x },
+        Some(scr) => { score += scr },
         _ => {
           print_result!("you lose");
           while getch() != KEY_QUIT {}
@@ -86,35 +91,40 @@ fn main() {
   }
 }
 
+/// 8方向+その場にとどまる+ランダム移動+終了を入力する
+/// 終了の場合はfalseを返し、それ以外はtrueを返す
+/// * `field` - フィールドの情報
+/// * `x_org` - 現在のプレイヤーのx座標
+/// * `y_org` - 現在のプレイヤーのy座標
 fn input(field: &Field, x_org: &mut usize, y_org: &mut usize) -> bool {
   let mut rng = rand::thread_rng();
   let mut x = *x_org;
   let mut y = *y_org;
 
   match getch() {
-    KEY_RIGHT => { if x < field.x_size-1 { x += 1; } },
+    KEY_RIGHT => { if x < field.width-1 { x += 1; } },
     KEY_LEFT  => { if x > 0 { x -= 1; } },
-    KEY_DOWN  => { if y < field.y_size-1 { y += 1; } },
+    KEY_DOWN  => { if y < field.height-1 { y += 1; } },
     KEY_UP    => { if y > 0 { y -= 1; } },
     KEY_RUP   => { 
       if y > 0 { y -= 1; }
-      if x < field.x_size-1 { x += 1; }
+      if x < field.width-1 { x += 1; }
     },
     KEY_LUP   => {
       if y > 0 { y -= 1; }
       if x > 0 { x -= 1; }
     },
     KEY_RDOWN => {
-      if y < field.y_size-1 { y += 1; } 
-      if x < field.x_size-1 { x += 1; }
+      if y < field.height-1 { y += 1; } 
+      if x < field.width-1 { x += 1; }
     },
     KEY_LDOWN => {
-      if y < field.y_size-1 { y += 1; } 
+      if y < field.height-1 { y += 1; } 
       if x > 0 { x -= 1; }
     },
     KEY_RAND  => {
-      x = rng.gen::<usize>() % field.x_size;
-      y = rng.gen::<usize>() % field.y_size;
+      x = rng.gen::<usize>() % field.width;
+      y = rng.gen::<usize>() % field.height;
     },
     KEY_QUIT  => { return false; },
     KEY_STAY  => (),
