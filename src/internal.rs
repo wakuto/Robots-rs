@@ -49,6 +49,8 @@ pub enum Object {
   Player,
   /// ロボット
   Robot,
+  /// スーパーロボ
+  SuperRobot,
   /// スクラップ
   Scrap,
   /// 何もない
@@ -80,6 +82,8 @@ pub struct Field {
   pub player_pos: Point,
   /// robotの位置のリスト
   pub robots_pos: Vec<Point>,
+  /// super_robotの位置のリスト
+  pub super_robots_pos: Vec<Point>,
   /// scrapの位置のリスト
   pub scraps_pos: HashSet<Point>,
   /// fieldを表すリスト
@@ -95,7 +99,8 @@ impl Field {
   pub fn new(pos: Point, width: usize, height: usize, robots_num: usize) -> Field {
     let mut rng = rand::thread_rng();
     let mut field = vec![vec![Object::Null; width]; height];
-    let mut robots = vec![Point::new(0, 0); robots_num];
+    let mut super_robots_pos: Vec<Point> = vec![Point::new(0, 0); robots_num/10];
+    let mut robots = vec![Point::new(0, 0); robots_num-(robots_num/10)];
     let scraps: HashSet<Point> = HashSet::new();
     let player = Point::new(width>>1, height>>1);
 
@@ -113,11 +118,18 @@ impl Field {
 
     for i in 0..robots_num {
       let idx = rng.gen::<usize>() % coord_list.len();
-      robots[i] = coord_list[idx];
+      if i < robots.len() {
+        robots[i] = coord_list[idx];
+      } else {
+        super_robots_pos[i-robots.len()] = coord_list[idx];
+      }
       coord_list.remove(idx);
     }
     for robot in &robots {
       field[robot.y][robot.x] = Object::Robot;
+    }
+    for sup_rob in &super_robots_pos {
+      field[sup_rob.y][sup_rob.x] = Object::SuperRobot;
     }
     field[player.y][player.x] = Object::Player;
 
@@ -127,6 +139,7 @@ impl Field {
       height,
       player_pos: Point::new(width>>1, height>>1),
       robots_pos: robots,
+      super_robots_pos,
       scraps_pos: scraps,
       field,
     }
@@ -151,37 +164,62 @@ impl Field {
     res
   }
 
-  /// robotをplayerの方向に移動させます
-  /// playerが負けた場合は`None`
-  /// それ以外の場合は獲得したscoreを返します
-  pub fn robots_move(&mut self) -> Option<u64> {
-    let rob_num = self.robots_pos.len();
-
-    // とりあえずロボットを移動させる
-    for rob_idx in 0..rob_num {
+  /// robotをplayerの方向に1移動させます
+  /// playerとの衝突判定は行わないません
+  /// * `robot_type` - 移動させるロボット
+  fn robots_get_closer(&mut self, robot_type: Object) {
+    let vec;
+    match robot_type {
+      Object::Robot => vec = &mut self.robots_pos,
+      Object::SuperRobot => vec = &mut self.super_robots_pos,
+      _ => return,
+    }
+    for idx in 0..vec.len() {
+      let robot = vec[idx];
       // robotからplayerの距離
-      let robot = self.robots_pos[rob_idx];
       let mut x = self.player_pos.x as i32 - robot.x as i32;
       let mut y = self.player_pos.y as i32 - robot.y as i32;
       // 進む方向の正規化
       if x != 0 { x /= x.abs(); }
       if y != 0 { y /= y.abs(); }
 
-      self.robots_pos[rob_idx].x = (robot.x as i32 + x) as usize;
-      self.robots_pos[rob_idx].y = (robot.y as i32 + y) as usize;
+      vec[idx].x = (robot.x as i32 + x) as usize;
+      vec[idx].y = (robot.y as i32 + y) as usize;
     }
+  }
 
-    let score = self.check_scrap();   // スクラップにする
-    let res = self.check_player_pos();// プレイヤーの安全を確認する
+  /// robotをplayerの方向に移動させます
+  /// playerが負けた場合は`None`
+  /// それ以外の場合は獲得したscoreを返します
+  /// * `stop` - ゲーム結果が決まるまで動かないことを示すフラグ
+  pub fn robots_move(&mut self, stop: bool) -> Option<u64> {
+    // とりあえずロボットを移動させる
+    self.robots_get_closer(Object::Robot);
+    // super_robotsも移動させる
+    self.robots_get_closer(Object::SuperRobot);
+    let mut score = self.check_scrap();   // スクラップにする
+    let mut res = self.check_player_pos();// プレイヤーの安全を確認する
+
+    // SuperRobotは2倍移動可能
+    if res {
+      self.robots_get_closer(Object::SuperRobot);
+      score += self.check_scrap();
+      res = self.check_player_pos();
+    }
+    
 
     // field情報の更新
     self.field_clear();
     self.field[self.player_pos.y][self.player_pos.x] = Object::Player;
     self.field_set(self.robots_pos.clone(), Object::Robot);
+    self.field_set(self.super_robots_pos.clone(), Object::SuperRobot);
     self.field_set(self.scraps_pos.clone().into_iter().collect(), Object::Scrap);
 
     if res {
-      Some(score)
+      match stop {
+        false => Some(score),
+        true  => Some(score*2),
+      }
     } else {
       None
     }
@@ -212,6 +250,7 @@ impl Field {
 
     // 同じ座標にあるrobotを削除・scrapに追加
     let rob_num = self.robots_pos.len();
+    let sup_rob_num = self.super_robots_pos.len();
     let mut rem_idx = Vec::<usize>::new();
     let mut hash_pos = HashSet::<Point>::new();
 
@@ -229,6 +268,21 @@ impl Field {
       self.robots_pos.remove(*rob_idx);
       score += 1;
     }
+    rem_idx = Vec::<usize>::new();
+    for sup_rob_idx in 0..sup_rob_num {
+      if !hash_pos.contains(&self.super_robots_pos[sup_rob_idx]) {
+        hash_pos.insert(self.super_robots_pos[sup_rob_idx]);
+      } else {
+        rem_idx.push(sup_rob_idx);
+        if !self.scraps_pos.contains(&self.super_robots_pos[sup_rob_idx]) {
+          self.scraps_pos.insert(self.super_robots_pos[sup_rob_idx]);
+        }
+      }
+    }
+    for sup_rob_idx in rem_idx.iter().rev() {
+      self.super_robots_pos.remove(*sup_rob_idx);
+      score += 2;
+    }
 
     // scrapと同じ座標にあるrobotを削除
     let rob_num = self.robots_pos.len();
@@ -242,6 +296,19 @@ impl Field {
       self.robots_pos.remove(*rob_idx);
       score += 1;
     }
+    // scrapと同じ座標にあるsuper_robotを削除
+    let sup_rob_num = self.super_robots_pos.len();
+    let mut rem_idx: Vec<usize> = Vec::new();
+    for rob_idx in 0..sup_rob_num {
+      if self.scraps_pos.contains(&self.super_robots_pos[rob_idx]) {
+        rem_idx.push(rob_idx);
+      }
+    }
+    for rob_idx in rem_idx.iter().rev() {
+      self.super_robots_pos.remove(*rob_idx);
+      score += 2;
+    }
+
     score
   }
 
@@ -255,6 +322,16 @@ impl Field {
       if *rob == self.player_pos {
         res = false;
         break;
+      }
+    }
+
+    // playerとsuper_robotの座標を比較
+    if res {
+      for rob in &self.super_robots_pos {
+        if *rob == self.player_pos {
+          res = false;
+          break;
+        }
       }
     }
 
@@ -294,6 +371,7 @@ impl Field {
           Object::Player => addstr("@"),
           Object::Robot  => addstr("+"),
           Object::Scrap  => addstr("*"),
+          Object::SuperRobot  => addstr("$"),
           _              => addstr(" "),
         };
       }
@@ -317,19 +395,22 @@ mod tests {
   fn field_new_test() {
     let field = Field::new(Point::new(0, 0), 50, 20, 10);
     let mut rob_count = 0;
+    let mut sup_rob_count = 0;
     let mut player_count = 0;
     let mut scrap_count = 0;
     for y in 0..field.height {
       for x in 0..field.width {
         match field.field[y][x] {
           Object::Robot => { rob_count += 1; },
+          Object::SuperRobot => { sup_rob_count += 1; },
           Object::Player => { player_count += 1; },
           Object::Scrap => { scrap_count += 1; },
           _ => (),
         }
       }
     }
-    assert_eq!(rob_count, 10);
+    assert_eq!(rob_count, 10-(10/10));
+    assert_eq!(sup_rob_count, 10/10);
     assert_eq!(player_count, 1);
     assert_eq!(scrap_count, 0);
   }
@@ -361,26 +442,26 @@ mod tests {
 
     field.robots_pos.push(Point::new(0, 0));
     field.player_move(Point::new(10, 0));
-    assert_eq!(field.robots_move(), Some(0));
+    assert_eq!(field.robots_move(false), Some(0));
     assert_eq!(field.robots_pos[0], Point::new(1, 0));
 
     field.player_move(Point::new(1, 10));
-    assert_eq!(field.robots_move(), Some(0));
+    assert_eq!(field.robots_move(false), Some(0));
     assert_eq!(field.robots_pos[0], Point::new(1, 1));
 
     field.robots_pos[0] = Point::new(10, 10);
     field.player_move(Point::new(0, 0));
-    assert_eq!(field.robots_move(), Some(0));
+    assert_eq!(field.robots_move(false), Some(0));
     assert_eq!(field.robots_pos[0], Point::new(9, 9));
 
     field.player_move(Point::new(8, 8));
-    assert_eq!(field.robots_move(), None);
+    assert_eq!(field.robots_move(false), None);
     assert_eq!(field.robots_pos[0], Point::new(8, 8));
 
     field.robots_pos[0] = Point::new(10, 10);
     field.robots_pos.push(Point::new(12, 10));
     field.player_move(Point::new(11, 0));
-    assert_eq!(field.robots_move(), Some(2));
+    assert_eq!(field.robots_move(false), Some(2));
     assert_eq!(field.robots_pos.len(), 0);
     assert!(field.scraps_pos.contains(&Point::new(11, 9)))
   }

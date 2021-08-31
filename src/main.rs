@@ -2,6 +2,7 @@
 
 use rand::Rng;
 use ncurses::*;
+use std::fs;
 
 mod internal;
 use internal::*;
@@ -77,13 +78,19 @@ fn main() {
       }
 
       // 勝ち負けを判定
-      robot_res = field.robots_move();
+      robot_res = field.robots_move(stop);
       field.print();
 
       match robot_res {
         Some(scr) => { score += scr },
         _ => {
           print_result!("you lose");
+          let highscore = get_highscore(&get_score_file("score.dat"));
+          if score > highscore {
+            mv(2, 0);
+            addstr(&format!("HighScore!! {} points", score));
+            save_record("score.dat", score);
+          }
           getch();
           exit!();
         }
@@ -145,6 +152,39 @@ fn input(ch: i32, field: &Field, x_org: &mut usize, y_org: &mut usize) -> Status
   *x_org = x;
   *y_org = y;
   Status::Normal
+}
+
+/// 記録をファイルから読み込み、文字列として返します
+/// * `filename` - 記録のファイル名
+fn get_score_file(filename: &str) -> String {
+  match fs::read_to_string(&filename) {
+    Ok(val) => val.trim().to_string(),
+    _ => "".to_string(),
+  }
+}
+
+/// 最も高いスコアを返します
+/// * `score_file` - 記録ファイルの文字列データ
+fn get_highscore(file_str: &str) -> u64 {
+  if file_str != "" {
+    let score_str: Vec<&str> = file_str.split('\n').collect::<Vec<&str>>();
+    let mut scores: Vec<u64> = score_str.iter().map(|x| x.parse()
+      .expect("スコアファイルの形式が違います")).collect();
+    scores.sort();
+    scores[scores.len()-1]
+  } else {
+    0
+  }
+}
+
+/// 記録をスコアファイルに追記します
+/// * `filename` - 保存するファイル名
+/// * `score` - 保存するスコア
+fn save_record(filename: &str, score: u64) {
+  let score_file = get_score_file(filename);
+  let new_score_file = format!("{}\n{}", score_file, score);
+  fs::write(&filename, new_score_file.trim())
+    .expect("スコアデータの書き込みに失敗しました");
 }
 
 #[cfg(test)]
