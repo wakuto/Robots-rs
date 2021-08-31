@@ -24,6 +24,8 @@ pub const KEY_LUP:   i32 = b'u' as i32;
 pub const KEY_LDOWN: i32 = b'm' as i32;
 /// ランダム
 pub const KEY_RAND:  i32 = b'k' as i32;
+/// これ以降は動かない
+pub const KEY_STOP:  i32 = b'0' as i32;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// フィールド上の位置を示します
@@ -51,6 +53,19 @@ pub enum Object {
   Scrap,
   /// 何もない
   Null,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// 次に行う処理の種類を表します
+pub enum Status {
+  /// 通常の処理
+  Normal,
+  /// 未定義の処理
+  Unknown,
+  /// ゲーム結果が決まるまで動かない
+  Stop,
+  /// ゲーム終了
+  Exit,
 }
 
 /// ゲームフィールドを表します

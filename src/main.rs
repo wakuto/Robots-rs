@@ -54,20 +54,19 @@ fn main() {
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
     let mut robot_res;
+    let mut stop = false;
 
     print_result!("         ");
     loop {
       print_status!(level, score);
       // 入力
-      match input(getch(), &field, &mut x, &mut y) {
-        Some(tf) => {
-          if !tf {
-            exit!();
-          }
-        },
-        None => {
-          continue;
-        },
+      if !stop {
+        match input(getch(), &field, &mut x, &mut y) {
+          Status::Normal => (),
+          Status::Unknown => { continue; },
+          Status::Exit => { exit!(); },
+          Status::Stop => { stop = true; },
+        }
       }
 
       // プレイヤーの移動
@@ -108,7 +107,7 @@ fn main() {
 /// * `field` - フィールドの情報
 /// * `x_org` - 現在のプレイヤーのx座標
 /// * `y_org` - 現在のプレイヤーのy座標
-fn input(ch: i32, field: &Field, x_org: &mut usize, y_org: &mut usize) -> Option<bool> {
+fn input(ch: i32, field: &Field, x_org: &mut usize, y_org: &mut usize) -> Status {
   let mut rng = rand::thread_rng();
   let mut x = *x_org;
   let mut y = *y_org;
@@ -138,13 +137,14 @@ fn input(ch: i32, field: &Field, x_org: &mut usize, y_org: &mut usize) -> Option
       x = rng.gen::<usize>() % field.width;
       y = rng.gen::<usize>() % field.height;
     },
-    KEY_QUIT  => { return Some(false); },
+    KEY_QUIT  => { return Status::Exit; },
     KEY_STAY  => (),
-    _ => { return None; },
+    KEY_STOP  => { return Status::Stop; },
+    _ => { return Status::Unknown; },
   };
   *x_org = x;
   *y_org = y;
-  Some(true)
+  Status::Normal
 }
 
 #[cfg(test)]
@@ -158,43 +158,43 @@ mod tests {
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LUP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LUP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 0));
 
-    assert!(input(KEY_UP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_UP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 0));
 
-    assert!(input(KEY_RUP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RUP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(1, 0));
 
     field.player_move(Point::new(1, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LUP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LUP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 2));
 
-    assert!(input(KEY_UP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_UP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 1));
 
-    assert!(input(KEY_RUP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RUP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(1, 0));
 
     field.player_move(Point::new(0, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LUP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LUP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 2));
 
     field.player_move(Point::new(field.width-1, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_RUP as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RUP as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(field.width-1, 2));
 
-    assert!(!input(KEY_QUIT as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_QUIT as i32, &field, &mut x, &mut y), Status::Exit);
   }
 
 #[test]
@@ -204,27 +204,27 @@ mod tests {
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LEFT as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LEFT as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 0));
 
-    assert!(input(KEY_STAY as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_STAY as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 0));
 
-    assert!(input(KEY_RIGHT as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RIGHT as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(1, 0));
 
     field.player_move(Point::new(0, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LEFT as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LEFT as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 3));
 
     field.player_move(Point::new(field.width-1, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_RIGHT as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RIGHT as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(field.width-1, 3));
   }
 
@@ -235,40 +235,40 @@ mod tests {
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LDOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LDOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, field.height-1));
 
-    assert!(input(KEY_DOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_DOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, field.height-1));
 
-    assert!(input(KEY_RDOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RDOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(1, field.height-1));
 
     field.player_move(Point::new(1, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LDOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LDOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 4));
 
-    assert!(input(KEY_DOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_DOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 5));
 
-    assert!(input(KEY_RDOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RDOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(1, 6));
 
     field.player_move(Point::new(0, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_LDOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_LDOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(0, 4));
 
     field.player_move(Point::new(field.width-1, 3));
     let mut x = field.player_pos.x;
     let mut y = field.player_pos.y;
 
-    assert!(input(KEY_RDOWN as i32, &field, &mut x, &mut y).unwrap());
+    assert_eq!(input(KEY_RDOWN as i32, &field, &mut x, &mut y), Status::Normal);
     assert_eq!(Point::new(x, y), Point::new(field.width-1, 4));
   }
 
@@ -282,10 +282,10 @@ mod tests {
     for i in 0..256 {
       match i {
         KEY_UP | KEY_DOWN | KEY_RIGHT | KEY_LEFT | KEY_QUIT | KEY_STAY |
-        KEY_RUP | KEY_RDOWN | KEY_LUP | KEY_LDOWN | KEY_RAND
+        KEY_RUP | KEY_RDOWN | KEY_LUP | KEY_LDOWN | KEY_RAND | KEY_STOP
         => (),
         _ => {
-          assert_eq!(input(i, &field, &mut x, &mut y), None);
+          assert_eq!(input(i, &field, &mut x, &mut y), Status::Unknown);
           assert_eq!(Point::new(x,y), Point::new(5, 5)); 
         },
       }
