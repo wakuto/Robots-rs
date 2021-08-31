@@ -286,3 +286,125 @@ impl Field {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+#[test]
+  fn point_new_test() {
+    let p = Point::new(1,2);
+    let q = Point { x:1, y:2 };
+    assert_eq!(p, q);
+  }
+
+#[test]
+  fn field_new_test() {
+    let field = Field::new(Point::new(0, 0), 50, 20, 10);
+    let mut rob_count = 0;
+    let mut player_count = 0;
+    let mut scrap_count = 0;
+    for y in 0..field.height {
+      for x in 0..field.width {
+        match field.field[y][x] {
+          Object::Robot => { rob_count += 1; },
+          Object::Player => { player_count += 1; },
+          Object::Scrap => { scrap_count += 1; },
+          _ => (),
+        }
+      }
+    }
+    assert_eq!(rob_count, 10);
+    assert_eq!(player_count, 1);
+    assert_eq!(scrap_count, 0);
+  }
+
+#[test]
+  fn player_move_test() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 0);
+
+    field.field[0][0] = Object::Null;
+    assert!(field.player_move(Point::new(0, 0)));
+    assert_eq!(Point::new(0, 0), field.player_pos);
+
+    field.field[0][1] = Object::Robot;
+    assert!(!field.player_move(Point::new(1, 0)));
+    assert_eq!(Point::new(0, 0), field.player_pos);
+
+    field.field[0][1] = Object::Scrap;
+    assert!(!field.player_move(Point::new(1, 0)));
+    assert_eq!(Point::new(0, 0), field.player_pos);
+
+    field.field[0][1] = Object::Null;
+    assert!(field.player_move(Point::new(1, 0)));
+    assert_eq!(Point::new(1, 0), field.player_pos);
+  }
+
+#[test]
+  fn robots_move_test() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 0);
+
+    field.robots_pos.push(Point::new(0, 0));
+    field.player_move(Point::new(10, 0));
+    assert_eq!(field.robots_move(), Some(0));
+    assert_eq!(field.robots_pos[0], Point::new(1, 0));
+
+    field.player_move(Point::new(1, 10));
+    assert_eq!(field.robots_move(), Some(0));
+    assert_eq!(field.robots_pos[0], Point::new(1, 1));
+
+    field.robots_pos[0] = Point::new(10, 10);
+    field.player_move(Point::new(0, 0));
+    assert_eq!(field.robots_move(), Some(0));
+    assert_eq!(field.robots_pos[0], Point::new(9, 9));
+
+    field.player_move(Point::new(8, 8));
+    assert_eq!(field.robots_move(), None);
+    assert_eq!(field.robots_pos[0], Point::new(8, 8));
+
+    field.robots_pos[0] = Point::new(10, 10);
+    field.robots_pos.push(Point::new(12, 10));
+    field.player_move(Point::new(11, 0));
+    assert_eq!(field.robots_move(), Some(2));
+    assert_eq!(field.robots_pos.len(), 0);
+    assert!(field.scraps_pos.contains(&Point::new(11, 9)))
+  }
+
+#[test]
+  fn field_clear_test() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 40);
+
+    field.field_clear();
+    
+    let mut null_count = 0;
+    for y in 0..field.height {
+      for x in 0..field.width {
+        match field.field[y][x] {
+          Object::Null => { null_count += 1; },
+          _ => (),
+        }
+      }
+    }
+    assert_eq!(null_count, field.height*field.width);
+  }
+
+#[test]
+  fn field_set_test() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 40);
+
+    field.field_clear();
+    for i in 0..10 {
+      field.robots_pos.push(Point::new(i, i));
+    }
+
+    field.field_set(field.robots_pos.clone(), Object::Robot);
+    for i in 0..10 {
+      assert!(match field.field[i][i] {
+        Object::Robot => true,
+        _ => false,
+      });
+    }
+
+  }
+
+}

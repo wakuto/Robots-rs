@@ -59,7 +59,7 @@ fn main() {
     loop {
       print_status!(level, score);
       // 入力
-      if !input(&field, &mut x, &mut y) {
+      if !input(getch(), &field, &mut x, &mut y) {
         exit!();
       }
 
@@ -78,7 +78,7 @@ fn main() {
         Some(scr) => { score += scr },
         _ => {
           print_result!("you lose");
-          while getch() != KEY_QUIT {}
+          getch();
           exit!();
         }
       }
@@ -97,15 +97,16 @@ fn main() {
 
 /// 8方向+その場にとどまる+ランダム移動+終了を入力する
 /// 終了の場合はfalseを返し、それ以外はtrueを返す
+/// * `ch` - キー入力
 /// * `field` - フィールドの情報
 /// * `x_org` - 現在のプレイヤーのx座標
 /// * `y_org` - 現在のプレイヤーのy座標
-fn input(field: &Field, x_org: &mut usize, y_org: &mut usize) -> bool {
+fn input(ch: i32, field: &Field, x_org: &mut usize, y_org: &mut usize) -> bool {
   let mut rng = rand::thread_rng();
   let mut x = *x_org;
   let mut y = *y_org;
 
-  match getch() {
+  match ch {
     KEY_RIGHT => { if x < field.width-1 { x += 1; } },
     KEY_LEFT  => { if x > 0 { x -= 1; } },
     KEY_DOWN  => { if y < field.height-1 { y += 1; } },
@@ -139,3 +140,148 @@ fn input(field: &Field, x_org: &mut usize, y_org: &mut usize) -> bool {
   true
 }
 
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+#[test]
+  fn input_test_up() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 0);
+    field.player_move(Point::new(1, 0));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LUP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 0));
+
+    assert!(input(KEY_UP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 0));
+
+    assert!(input(KEY_RUP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(1, 0));
+
+    field.player_move(Point::new(1, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LUP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 2));
+
+    assert!(input(KEY_UP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 1));
+
+    assert!(input(KEY_RUP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(1, 0));
+
+    field.player_move(Point::new(0, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LUP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 2));
+
+    field.player_move(Point::new(field.width-1, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_RUP as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(field.width-1, 2));
+
+    assert!(!input(KEY_QUIT as i32, &field, &mut x, &mut y));
+  }
+
+#[test]
+  fn input_test_mid() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 0);
+    field.player_move(Point::new(1, 0));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LEFT as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 0));
+
+    assert!(input(KEY_STAY as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 0));
+
+    assert!(input(KEY_RIGHT as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(1, 0));
+
+    field.player_move(Point::new(0, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LEFT as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 3));
+
+    field.player_move(Point::new(field.width-1, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_RIGHT as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(field.width-1, 3));
+  }
+
+#[test]
+  fn input_test_down() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 0);
+    field.player_move(Point::new(1, field.height-1));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LDOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, field.height-1));
+
+    assert!(input(KEY_DOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, field.height-1));
+
+    assert!(input(KEY_RDOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(1, field.height-1));
+
+    field.player_move(Point::new(1, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LDOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 4));
+
+    assert!(input(KEY_DOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 5));
+
+    assert!(input(KEY_RDOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(1, 6));
+
+    field.player_move(Point::new(0, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_LDOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(0, 4));
+
+    field.player_move(Point::new(field.width-1, 3));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    assert!(input(KEY_RDOWN as i32, &field, &mut x, &mut y));
+    assert_eq!(Point::new(x, y), Point::new(field.width-1, 4));
+  }
+
+#[test]
+  fn input_test_other() {
+    let mut field = Field::new(Point::new(0, 0), 50, 20, 0);
+    field.player_move(Point::new(5, 5));
+    let mut x = field.player_pos.x;
+    let mut y = field.player_pos.y;
+
+    for i in 0..256 {
+      match i {
+        KEY_UP | KEY_DOWN | KEY_RIGHT | KEY_LEFT | KEY_QUIT |
+        KEY_RUP | KEY_RDOWN | KEY_LUP | KEY_LDOWN | KEY_RAND
+        => (),
+        _ => {
+          assert!(input(i, &field, &mut x, &mut y));
+          assert_eq!(Point::new(x,y), Point::new(5, 5)); 
+        },
+      }
+    }
+  }
+}
